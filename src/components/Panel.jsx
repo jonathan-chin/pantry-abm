@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   state, notify, triggerShock, initSim, saveCurrentRun, initModifiers, togglePantryClosed,
-  toggleModifier, getWindowStats, setWindowIdx, setClock, setSeed, getHouseholdStats,
+  toggleModifier, getWindowStats, setClock, setSeed, getHouseholdStats,
 } from '../simulation/engine.js';
 import { randomSeed } from '../utils/rng.js';
 import { UNMET_REASONS } from '../data/reasons.js';
@@ -10,6 +10,7 @@ import { WINDOW_OPTIONS } from '../utils/window.js';
 import { generateCSV, downloadCSV } from '../utils/csv.js';
 import { loadPref, savePref } from '../utils/prefs.js';
 import { CONFIG, simSecondsToMinutes } from '../config.js';
+import Metric from './Metric.jsx';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -37,11 +38,6 @@ export default function Panel({ onShowSummary, onOpenConfig }) {
   const [collapsed, setCollapsed] = useState(() => loadPref('collapsed', {}));
   const p = state.params;
   const w = getWindowStats();
-  const total = w.served + w.left + w.stayedHome; // everyone who needed food
-  const satPct = total > 0 ? Math.round(w.served / total * 100) : 0;
-  const avgDist = w.served > 0 ? (w.distSum / w.served).toFixed(2) : '0';
-  const queued = state.pantries.reduce((sum, pt) => sum + pt.queue.length, 0);
-  const active = state.agents.filter(a => a.state === 'traveling' || a.state === 'queued').length;
   const windowLabel = WINDOW_OPTIONS[state.view.windowIdx].label;
 
   const inspectedPantry = state.inspecting ? state.pantries.find(pt => pt.id === state.inspecting) : null;
@@ -53,7 +49,7 @@ export default function Panel({ onShowSummary, onOpenConfig }) {
   }
 
   function setAllSections(isCollapsed) {
-    const ids = ['metrics', 'unmet', 'households', 'simulation', 'clock', 'modifiers', 'environment', 'agents', 'shock', 'data', 'inspector'];
+    const ids = ['unmet', 'households', 'simulation', 'clock', 'modifiers', 'environment', 'agents', 'shock', 'data', 'inspector'];
     const next = Object.fromEntries(ids.map(id => [id, isCollapsed]));
     setCollapsed(next);
     savePref('collapsed', next);
@@ -81,46 +77,10 @@ export default function Panel({ onShowSummary, onOpenConfig }) {
     downloadCSV(generateCSV(state.runs, allEvents));
   }
 
-  const satColor = satPct > 70 ? 'var(--accent)' : satPct > 40 ? 'var(--warn)' : 'var(--danger)';
   const clockMinutes = Math.floor(state.clock.hour) * 60 + Math.floor(state.clock.minute / 15) * 15;
 
   return (
     <div className="panel">
-      {/* Metrics + global window */}
-      <div className="metrics-bar">
-        <div className="control-row window-row" title="Time span for every chart and the metrics below (active hours; nights are skipped)">
-          <label>Window</label>
-          <input type="range" min={0} max={WINDOW_OPTIONS.length - 1} step={1} value={state.view.windowIdx}
-            onChange={e => setWindowIdx(+e.target.value)} />
-          <span className="value">{windowLabel}</span>
-        </div>
-        <button className="section-toggle metrics-toggle" onClick={() => toggleSection('metrics')} aria-expanded={!collapsed.metrics}>
-          <span className={'chevron' + (collapsed.metrics ? '' : ' open')}>▸</span>
-          <span className="section-title">Metrics</span>
-          <span className="toggle-hint">{collapsed.metrics ? `${satPct}% of need met · ${w.served} served` : ''}</span>
-        </button>
-        {!collapsed.metrics && (
-          <>
-            <div className="gauge" title="People who got food, out of everyone who needed it, including those who stayed home">
-              <div className="gauge-label"><span>Need met</span><span>{satPct}%</span></div>
-              <div className="gauge-bar">
-                <div className="gauge-fill" style={{ width: satPct + '%', background: satColor }} />
-              </div>
-            </div>
-            <div className="metric-grid four">
-              <Metric value={total} label="Needed food" color="#e2e8f0" title="Everyone who needed food in this window" />
-              <Metric value={w.served} label="Served" color="var(--accent)" />
-              <Metric value={w.left} label="Left" color="var(--danger)" title="Set out and came back without food" />
-              <Metric value={w.stayedHome} label="Stayed home" color="#c2566b" title="Needed food but never set out" />
-              <Metric value={w.redirected} label="Redirected" color="var(--nudge)" />
-              <Metric value={avgDist} label="Avg km" color="var(--info)" />
-              <Metric value={queued} label="In line" color="var(--muted)" title="In line right now" />
-              <Metric value={active} label="Active" color="#94a3b8" title="Walking or in line right now" />
-            </div>
-          </>
-        )}
-      </div>
-
       {/* Header */}
       <div className="panel-header">
         <h1>NYC Pantry ABM</h1>
@@ -283,7 +243,8 @@ export default function Panel({ onShowSummary, onOpenConfig }) {
 
       {(state.addingPantry || state.removingPantry || state.closingPantry) && (
         <div className="mode-indicator">
-          {state.addingPantry ? 'Click map to place pantry' : state.removingPantry ? 'Click a pantry to remove it' : 'Click a pantry to close/reopen it'}
+          {state.addingPantry ? 'Click a street corner to place a pantry' : state.removingPantry ? 'Click a pantry to remove it' : 'Click a pantry to close or reopen it'}
+          <span className="mode-esc"> · Esc to cancel</span>
         </div>
       )}
     </div>
@@ -349,15 +310,6 @@ function UnmetReasons({ reasons, windowLabel }) {
         <span><i className="left" />Left without food</span>
         <span><i className="stayedHome" />Stayed home</span>
       </div>
-    </div>
-  );
-}
-
-function Metric({ value, label, color, title }) {
-  return (
-    <div className="metric" title={title}>
-      <div className="num" style={{ color }}>{value}</div>
-      <div className="lbl">{label}</div>
     </div>
   );
 }

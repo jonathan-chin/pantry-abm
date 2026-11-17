@@ -7,13 +7,17 @@
 #   weather      forces the day's weather to the named condition in weather.yaml (one at a time)
 #
 # A new additive entry with a need_multiplier works without any code change.
-# color is the stripe drawn behind the timeline while the modifier is on.
+#
+# color and pattern are the faint background drawn behind the timeline while the modifier is on.
+#   pattern   diagonal_up, diagonal_down, horizontal, dots, crosses or dashes
+#             (optional; an entry without one is given the next pattern in that list)
 
 modifiers:
   - id: load_balancing
     label: Load Balancing
     type: replacement
     color: "#facc15"
+    pattern: diagonal_up
     description: Redirect people to pantries with more stock
 
   - id: holiday_surge
@@ -21,6 +25,7 @@ modifiers:
     type: additive
     need_multiplier: 1.6
     color: "#f472b6"
+    pattern: crosses
     description: Seasonal rise in need
 
   - id: weather_rain
@@ -28,6 +33,7 @@ modifiers:
     type: weather
     weather: rain
     color: "#38bdf8"
+    pattern: diagonal_down
     description: Less willing to travel or wait, slower walking
 
   - id: weather_snow
@@ -35,6 +41,7 @@ modifiers:
     type: weather
     weather: snow
     color: "#f8fafc"
+    pattern: dots
     description: Much less willing to travel or wait, much slower walking
 
   - id: weather_heat
@@ -42,6 +49,7 @@ modifiers:
     type: weather
     weather: heat
     color: "#fb923c"
+    pattern: horizontal
     description: Short patience in line, somewhat less travel
 
   - id: weather_wind
@@ -49,4 +57,5 @@ modifiers:
     type: weather
     weather: wind
     color: "#2dd4bf"
+    pattern: dashes
     description: Slightly less willing to travel or wait

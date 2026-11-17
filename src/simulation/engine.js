@@ -1,5 +1,6 @@
 import { CONFIG, perHourToPerSimSecond } from '../config.js';
 import { MODIFIERS } from '../data/modifiers.js';
+import { LAYERS } from '../data/layers.js';
 import { WEATHER_EFFECTS, DAILY_WEATHER } from '../data/weather.js';
 import { distanceKm } from '../utils/geo.js';
 import { getCity, getAdjacency } from '../data/cityStore.js';
@@ -39,6 +40,14 @@ let stateVersion = 0;
 let lastNotifyTime = 0;
 const NOTIFY_INTERVAL = 200;
 
+// Development only. The simulation's state lives in this module. If the dev server swapped
+// a changed copy into a page that is already open, the page would hold two simulations,
+// each feeding different parts of the screen (a heatmap from one, the map from the other).
+// So when this file, or anything it depends on, changes, reload the page instead.
+if (import.meta.hot && typeof window !== 'undefined') {
+  import.meta.hot.accept(() => window.location.reload());
+}
+
 export function getVersion() { return stateVersion; }
 
 const DEFAULT_WINDOW_IDX = (() => {
@@ -52,10 +61,11 @@ function startClock() {
   return { hour: Math.floor(CONFIG.startHour), minute: (CONFIG.startHour % 1) * 60, day: 1, weekday: CONFIG.startWeekday };
 }
 
-export const DEFAULT_LAYERS = {
-  water: true, parks: true, streets: true, highways: true, labels: true,
-  pantries: true, agents: true, waiting: true, heatmap: false, weather: true,
-};
+// Which optional map layers are on: the saved choice if there is one, else the default.
+function startLayers() {
+  const saved = loadPref('layers', {});
+  return Object.fromEntries(LAYERS.map(l => [l.id, typeof saved[l.id] === 'boolean' ? saved[l.id] : l.on]));
+}
 
 // Flows during one chart sample. "left" set out and came back without food;
 // "stayedHome" needed food but never set out. r_<reason> counts each cause.
@@ -91,7 +101,7 @@ export const state = {
   // One sample per chartSampleInterval sim-seconds; each holds the flows for that interval.
   chart: { samples: [], sampleTimer: 0, acc: emptyAcc() },
 
-  // Demand heatmap: met / unmet outcomes counted at each agent's starting cell.
+  // Heatmap counts: met / unmet outcomes at each agent's starting cell. The map draws the unmet ones.
   heat: null,
 
   households: emptyHouseholds(),
@@ -114,7 +124,7 @@ export const state = {
   stepAlpha: 0,                 // how far the display is between two steps (0–1)
 
   view: { windowIdx: clampWindowIdx(loadPref('windowIdx', DEFAULT_WINDOW_IDX)) },
-  layers: { ...DEFAULT_LAYERS, ...loadPref('layers', {}) },
+  layers: startLayers(),
 
   inspecting: null,
   addingPantry: false,
@@ -175,8 +185,10 @@ export function toggleModifier(id) {
   notify();
 }
 
-export function logEvent(type, detail = '') {
-  state.events.push({ time: state.simTime, type, detail, runId: state.currentRunId });
+// routine: part of the daily rhythm (pantries opening and closing by their hours),
+// which the charts draw as one quiet marker per morning or evening.
+export function logEvent(type, detail = '', routine = false) {
+  state.events.push({ time: state.simTime, type, detail, routine, runId: state.currentRunId });
 }
 
 export function createPantry(x, y, name, capacity) {
@@ -487,11 +499,29 @@ function countUnmet(a, reason, pantry) {
   if (a.household) householdUnmet(a.household, reason, pantry);
 }
 
+// Turned away at a pantry: walk a short way back along the streets they came by, fading out.
 function sendAway(a, reason) {
   a.state = 'leaving';
   a.leaveReason = reason;
-  a.leaveDir = [rng.behavior() - 0.5, rng.behavior() - 0.5];
+  a.back = 0; // share of the trip walked back so far
+  // Earlier versions picked a random direction here. These two unused draws keep
+  // a seed producing exactly the same run as before.
+  rng.behavior(); rng.behavior();
   a.lingerTimer = CONFIG.walkAwayTime;
+}
+
+// Where an agent is along its trip: 0 at home, 1 at the pantry.
+function tripPosition(a, t) {
+  if (a.path && a.segLengths) return pathPosition(a.path, a.segLengths, a.pathLen, t);
+  return [
+    a.home[0] + (a.targetPantry.lat - a.home[0]) * t,
+    a.home[1] + (a.targetPantry.lng - a.home[1]) * t,
+  ];
+}
+
+// Sim-seconds the whole trip takes at this agent's walking speed.
+function tripTime(a) {
+  return Math.max(CONFIG.minTripTime, a.travelDist / (CONFIG.travelSpeed * (a.speedMult ?? 1)));
 }
 
 function recordOutcome(a, met) {
@@ -565,12 +595,12 @@ function updatePantryHours() {
         p.restockTimer = 0;
         scheduleRestock(p);
       }
-      logEvent('pantry_reopened', `id=${p.id} (hours)`);
+      logEvent('pantry_reopened', `id=${p.id} (hours)`, true);
     } else if (!p.closed && !shouldBeOpen) {
       p.closed = true;
       p.closedReason = 'hours';
       closePantryQueues(p);
-      logEvent('pantry_closed', `id=${p.id} (hours)`);
+      logEvent('pantry_closed', `id=${p.id} (hours)`, true);
     }
   }
 }
@@ -680,13 +710,13 @@ export function stepSim() {
         p.stats.waitN++;
         recordOutcome(a, true);
         if (a.household) householdServed(a.household, p);
+        a.lingerTimer = CONFIG.lingerTime + CONFIG.fadeTime;
       } else {
         sendAway(a, 'no_food');
         countUnmet(a, 'no_food', p);
         p.stats.stockOuts++;
         p.shake = CONFIG.pantryShakeDuration;
       }
-      a.lingerTimer = CONFIG.lingerTime + CONFIG.fadeTime;
     }
   }
 
@@ -704,7 +734,6 @@ export function stepSim() {
     }
   }
 
-  const city = getCity();
   for (let i = state.agents.length - 1; i >= 0; i--) {
     const a = state.agents[i];
     // where the agent was a step ago, so the map can draw smooth motion between steps
@@ -712,8 +741,7 @@ export function stepSim() {
     a.py = a.pos[1];
 
     if (a.state === 'traveling') {
-      const tt = Math.max(CONFIG.minTripTime, a.travelDist / (CONFIG.travelSpeed * (a.speedMult ?? 1)));
-      a.progress += scaledDt / tt;
+      a.progress += scaledDt / tripTime(a);
       a.travelTime += scaledDt;
       a.wellbeing -= CONFIG.wellbeingDecayTravel * scaledDt;
 
@@ -731,13 +759,8 @@ export function stepSim() {
           acc.travelSum += a.travelTime;
           acc.travelN++;
         }
-      } else if (a.path && a.segLengths) {
-        a.pos = pathPosition(a.path, a.segLengths, a.pathLen, Math.min(a.progress, 1));
       } else {
-        a.pos = [
-          a.home[0] + (a.targetPantry.lat - a.home[0]) * a.progress,
-          a.home[1] + (a.targetPantry.lng - a.home[1]) * a.progress,
-        ];
+        a.pos = tripPosition(a, Math.min(a.progress, 1));
       }
     } else if (a.state === 'queued') {
       // position updated in render
@@ -757,12 +780,11 @@ export function stepSim() {
         continue;
       }
     } else if (a.state === 'leaving') {
+      // back the way they came, at their own walking speed
       a.lingerTimer -= scaledDt;
-      const mag = Math.sqrt(a.leaveDir[0] ** 2 + a.leaveDir[1] ** 2) || 1;
-      a.pos[0] += (a.leaveDir[0] / mag) * CONFIG.walkAwayDist * scaledDt;
-      a.pos[1] += (a.leaveDir[1] / mag) * CONFIG.walkAwayDist * scaledDt;
-      const oob = city && (a.pos[0] < 30 || a.pos[0] > city.size[0] - 30 || a.pos[1] < 30 || a.pos[1] > city.size[1] - 30);
-      if (a.lingerTimer <= 0 || oob) {
+      a.back = Math.min(1, a.back + scaledDt / tripTime(a));
+      a.pos = tripPosition(a, 1 - a.back);
+      if (a.lingerTimer <= 0 || a.back >= 1) {
         state.agents.splice(i, 1);
         continue;
       }
@@ -829,7 +851,8 @@ export function setWindowIdx(idx) {
 }
 
 export function setLayer(name, on) {
-  state.layers[name] = on;
+  if (!(name in state.layers)) return;
+  state.layers[name] = !!on;
   savePref('layers', state.layers);
   notify();
 }

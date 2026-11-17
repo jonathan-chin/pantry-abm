@@ -11,6 +11,7 @@ import pantriesText from '../config/pantries.yaml?raw';
 import weatherText from '../config/weather.yaml?raw';
 import modifiersText from '../config/modifiers.yaml?raw';
 import displayText from '../config/display.yaml?raw';
+import { randomSeed } from './utils/rng.js';
 
 export const CONFIG_FILES = [
   { id: 'simulation', file: 'simulation.yaml', text: simulationText },
@@ -73,6 +74,12 @@ const S = 'simulation', A = 'agents', P = 'pantries', W = 'weather', D = 'displa
 const hour = (id, path) => settingNumber(id, path, { min: 0, max: 24 });
 const prob = (id, path) => settingNumber(id, path, { min: 0, max: 1 });
 
+// The seed a fresh load starts from: the word "random" for a new one each time, or a whole number.
+function startingSeed(id, path) {
+  if (setting(id, path) === 'random') return randomSeed();
+  return settingNumber(id, path, { min: 0 });
+}
+
 const strandedWait = settingRange(A, 'patience.stranded_wait_minutes', { min: 0 });
 const restockInterval = settingRange(P, 'restock.interval_minutes', { min: 0.01 });
 const restockAmount = settingRange(P, 'restock.amount_packages', { min: 0 });
@@ -93,7 +100,7 @@ export const CONFIG = {
   maxSpeed: settingNumber(S, 'speed.max_multiplier', { min: 0.01 }),
   simStep: minutesToSimSeconds(settingNumber(S, 'stepping.step_minutes', { min: 0.001 })),
   maxStepsPerFrame: settingNumber(S, 'stepping.max_steps_per_frame', { min: 1 }),
-  initialSeed: settingNumber(S, 'randomness.initial_seed', { min: 0 }),
+  initialSeed: startingSeed(S, 'randomness.initial_seed'),
   chartSampleInterval: minutesToSimSeconds(settingNumber(S, 'charts.sample_interval_minutes', { min: 0.01 })),
   chartMaxSamples: settingNumber(S, 'charts.max_samples', { min: 10 }),
   defaultWindowHours: setting(S, 'charts.default_window_hours'),
@@ -167,16 +174,19 @@ export const CONFIG = {
 
   // display.yaml (times are sim-seconds, which is what "seconds at 1x" means)
   agentRadius: settingNumber(D, 'agents.radius_px', { min: 0.5 }),
+  agentRingWidth: settingNumber(D, 'agents.ring_width_px', { min: 0 }),
   agentOpacity: prob(D, 'agents.opacity_0_to_1'),
   lingerTime: settingNumber(D, 'agents.served_linger_seconds_at_1x', { min: 0 }),
   fadeTime: settingNumber(D, 'agents.served_fade_seconds_at_1x', { min: 0.01 }),
   walkAwayTime: settingNumber(D, 'agents.walk_away_seconds_at_1x', { min: 0.01 }),
-  walkAwayDist: settingNumber(D, 'agents.walk_away_speed_map_units_per_second_at_1x', { min: 0 }),
   strandedFadeTime: settingNumber(D, 'agents.stay_home_fade_seconds_at_1x', { min: 0.01 }),
   waggleAmplitude: settingNumber(D, 'agents.waggle_amplitude_map_units', { min: 0 }),
   waggleSpeed: settingNumber(D, 'agents.waggle_speed_radians_per_second_at_1x', { min: 0 }),
   pantryShakeDuration: settingNumber(D, 'pantries.shake_seconds_at_1x', { min: 0.01 }),
   pantryShakeDecay: settingNumber(D, 'pantries.shake_cycles_per_second_at_1x', { min: 0 }),
   eventMarkerWidth: settingNumber(D, 'charts.event_marker_width_px', { min: 0.5 }),
+  routineEventGroupGap: minutesToSimSeconds(settingNumber(D, 'charts.routine_event_group_gap_minutes', { min: 0 })),
   heatmapCell: settingNumber(D, 'heatmap.cell_meters', { min: METERS_PER_MAP_UNIT }) / METERS_PER_MAP_UNIT, // map units
+  heatmapBlurCells: settingNumber(D, 'heatmap.blur_meters', { min: 1 }) / settingNumber(D, 'heatmap.cell_meters', { min: METERS_PER_MAP_UNIT }),
+  heatmapOpacity: prob(D, 'heatmap.opacity_0_to_1'),
 };

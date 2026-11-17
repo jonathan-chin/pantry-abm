@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { BAND_COLORS } from '../utils/colors.js';
-import { drawModifierStripes } from '../utils/chartDraw.js';
+import { drawModifierPatterns } from '../utils/chartDraw.js';
 import { modifierColor, modifierLabel } from '../data/modifiers.js';
 import { needTotal } from '../data/reasons.js';
 import { simSecondsToMinutes } from '../config.js';
@@ -99,12 +99,12 @@ function drawMiniChart(canvas, run) {
   const n = samples.length;
   const xStep = w / (n - 1);
 
-  // Stripes for stretches where modifiers were on
+  // Faint background patterns for stretches where modifiers were on
   let start = 0;
   for (let i = 1; i <= n; i++) {
     const key = (samples[start].modifiers || []).join(',');
     if (i < n && (samples[i].modifiers || []).join(',') === key) continue;
-    if (key) drawModifierStripes(ctx, start * xStep, (i - 1) * xStep, 0, h, samples[start].modifiers, 0, 0.35);
+    if (key) drawModifierPatterns(ctx, start * xStep, (i - 1) * xStep, 0, h, samples[start].modifiers, 1.2);
     start = i;
   }
 

@@ -1,26 +1,33 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { state, notify } from '../simulation/engine.js';
 import { BAND_COLORS, PERIODS, periodFor } from '../utils/colors.js';
-import { CONFIG } from '../config.js';
 import { binSamples, windowSpan } from '../utils/window.js';
-import { EVENT_ICONS, drawStripeRuns } from '../utils/chartDraw.js';
-import { modifierColor, modifierLabel } from '../data/modifiers.js';
+import { drawModifierRuns, eventMarkers, drawEventMarkers } from '../utils/chartDraw.js';
+import { modifierColor, modifierLabel, modifierPattern } from '../data/modifiers.js';
 
 const BANDS = ['served', 'redirected', 'inLine', 'left', 'stayedHome'];
 const LABELS = ['Served', 'Redirected', 'In Line', 'Left', 'Stayed home'];
-const LEGEND_H = 20;
+const LEGEND_H = 20; // one row of legend; it grows when the entries need a second row
 const STRIP_H = 5;
 
 export default function StackedChart({ width, height }) {
   const canvasRef = useRef(null);
+  const legendRef = useRef(null);
   const frameRef = useRef(0);
+  const [legendH, setLegendH] = useState(LEGEND_H);
+
+  // The legend wraps onto a second row when several modifiers are showing; the chart gives up that height.
+  useLayoutEffect(() => {
+    const h = Math.max(LEGEND_H, legendRef.current?.offsetHeight || 0);
+    if (h !== legendH) setLegendH(h);
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    const ch = height - LEGEND_H;
+    const ch = Math.max(20, height - legendH);
     canvas.width = width * dpr;
     canvas.height = ch * dpr;
     ctx.scale(dpr, dpr);
@@ -31,7 +38,7 @@ export default function StackedChart({ width, height }) {
     }
     frameRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frameRef.current);
-  }, [width, height]);
+  }, [width, height, legendH]);
 
   function toggleBand(band) {
     if (state.hiddenChartBands[band]) {
@@ -55,9 +62,10 @@ export default function StackedChart({ width, height }) {
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <canvas
         ref={canvasRef}
-        style={{ width: '100%', flex: 1, display: 'block' }}
+        style={{ width: '100%', flex: 1, minHeight: 0, display: 'block' }}
       />
-      <div className="chart-legend" style={{ height: LEGEND_H }}>
+      <div className="chart-legend" ref={legendRef} style={{ minHeight: LEGEND_H }}>
+        <span className="legend-group">
         {BANDS.map((band, i) => {
           const hidden = !!state.hiddenChartBands[band];
           return (
@@ -67,20 +75,21 @@ export default function StackedChart({ width, height }) {
             </button>
           );
         })}
-        {visibleMods.length > 0 && <span className="legend-sep" />}
+        </span>
         {visibleMods.map(id => (
-          <span key={id} className="legend-item static" title="Stripes behind the bars show when this modifier was on">
-            <span className="legend-swatch striped" style={{ '--stripe': modifierColor(id) }} />
+          <span key={id} className="legend-item static" title="This pattern behind the bars shows when the modifier was on">
+            <span className={'legend-swatch pattern pat-' + modifierPattern(id)} style={{ '--c': modifierColor(id) }} />
             {modifierLabel(id)}
           </span>
         ))}
-        <span className="legend-sep" />
+        <span className="legend-group">
         {PERIODS.map(p => (
           <span key={p.id} className="legend-item static">
             <span className="legend-swatch bar" style={{ background: p.color }} />
             {p.label}
           </span>
         ))}
+        </span>
       </div>
     </div>
   );
@@ -107,9 +116,8 @@ function drawChart(ctx, w, h) {
   const hidden = state.hiddenChartBands;
   const visibleBands = BANDS.filter(b => !hidden[b]);
 
-  // Modifier stripes behind the bars
-  const phase = ((xOf(0) % 7) + 7) % 7;
-  drawStripeRuns(ctx, bins, xOf, 0, plotBottom, phase);
+  // Faint modifier backgrounds behind the bars
+  drawModifierRuns(ctx, bins, xOf, 0, plotBottom);
 
   const totals = bins.map(d => visibleBands.reduce((sum, b) => sum + (d[b] || 0), 0));
   const maxTotal = Math.max(...totals, 1);
@@ -127,7 +135,7 @@ function drawChart(ctx, w, h) {
       const barH = ((bin[band] || 0) / maxTotal) * (plotBottom - 4);
       if (barH < 0.5) continue;
       ctx.fillStyle = BAND_COLORS[band];
-      ctx.globalAlpha = 0.92;
+      ctx.globalAlpha = 1; // solid, so the bars read at once over any background
       ctx.fillRect(x0, yBottom - barH, bw, barH);
       yBottom -= barH;
     }
@@ -139,23 +147,6 @@ function drawChart(ctx, w, h) {
   }
   ctx.globalAlpha = 1;
 
-  for (const evt of state.events) {
-    if (evt.time < now - span || evt.time > now) continue;
-    const icon = EVENT_ICONS[evt.type];
-    if (!icon) continue;
-    const evtX = xOf(evt.time);
-    ctx.strokeStyle = icon.color;
-    ctx.lineWidth = CONFIG.eventMarkerWidth;
-    ctx.globalAlpha = 0.6;
-    ctx.beginPath();
-    ctx.moveTo(evtX, 0);
-    ctx.lineTo(evtX, plotBottom);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = icon.color;
-    ctx.font = 'bold 16px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(icon.symbol, evtX, 18);
-  }
+  drawEventMarkers(ctx, eventMarkers(state.events), xOf, now - span, now, 0, plotBottom, { large: true });
   ctx.globalAlpha = 1;
 }

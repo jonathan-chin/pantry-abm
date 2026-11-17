@@ -15,7 +15,6 @@ const MAP_COLORS = {
   label: 'rgba(148,163,184,0.5)',
 };
 
-const BG_LAYERS = ['water', 'parks', 'streets', 'highways', 'labels'];
 const rasterCache = new WeakMap();
 
 export default function MapView() {
@@ -25,7 +24,6 @@ export default function MapView() {
   const dragRef = useRef(null);
   const suppressClickRef = useRef(false); // the click that ends a drag is not a click
   const bgRef = useRef(null);
-  const bgKeyRef = useRef('');
   const lastCityRef = useRef(null);
   const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
   const heatRef = useRef({ heat: null, version: -1, at: 0, canvas: null });
@@ -206,11 +204,7 @@ export default function MapView() {
       bgRef.current = null;
     }
 
-    const bgKey = BG_LAYERS.map(k => (state.layers[k] ? 1 : 0)).join('');
-    if (!bgRef.current || bgKeyRef.current !== bgKey) {
-      bgRef.current = buildBg(city, w, h, v, dpr);
-      bgKeyRef.current = bgKey;
-    }
+    if (!bgRef.current) bgRef.current = buildBg(city, w, h, v, dpr);
     ctx.drawImage(bgRef.current, 0, 0, w, h);
 
     // Dynamic layer
@@ -220,13 +214,12 @@ export default function MapView() {
     ctx.translate(-v.ox, -v.oy);
 
     if (state.layers.heatmap) drawHeatmap(ctx);
-    if (state.layers.pantries) drawPantries(ctx, v.scale);
-    if (state.layers.waiting) drawWaiting(ctx, v.scale);
-    if (state.layers.agents) drawAgents(ctx, v.scale);
+    drawAgents(ctx, v.scale);
+    drawPantries(ctx, v.scale); // on top, so a pantry's stock number is never covered
 
     ctx.restore();
 
-    if (state.layers.weather) drawWeather(ctx, w, h, state.running ? dt : 0);
+    drawWeather(ctx, w, h, state.running ? dt : 0);
   }
 
   function buildBg(city, w, h, v, dpr) {
@@ -251,22 +244,18 @@ export default function MapView() {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       const rw = raster.cols * raster.cell, rh = raster.rows * raster.cell;
-      if (state.layers.parks) ctx.drawImage(raster.park, 0, 0, rw, rh);
-      if (state.layers.water) ctx.drawImage(raster.water, 0, 0, rw, rh);
+      ctx.drawImage(raster.park, 0, 0, rw, rh);
+      ctx.drawImage(raster.water, 0, 0, rw, rh);
     }
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     const minW = 0.8 / v.scale;
-    if (state.layers.streets) {
-      strokeRoads(ctx, city.roads?.loc, MAP_COLORS.local, Math.max(2.2, minW));
-      strokeRoads(ctx, city.roads?.art, MAP_COLORS.arterial, Math.max(3.6, minW * 1.4));
-    }
-    if (state.layers.highways) {
-      strokeRoads(ctx, city.roads?.hw, MAP_COLORS.highway, Math.max(5, minW * 2));
-    }
+    strokeRoads(ctx, city.roads?.loc, MAP_COLORS.local, Math.max(2.2, minW));
+    strokeRoads(ctx, city.roads?.art, MAP_COLORS.arterial, Math.max(3.6, minW * 1.4));
+    strokeRoads(ctx, city.roads?.hw, MAP_COLORS.highway, Math.max(5, minW * 2));
 
-    if (state.layers.labels && city.labels) {
+    if (city.labels) {
       const size = 10.5 / v.scale;
       ctx.font = `600 ${size}px Inter, sans-serif`;
       ctx.textAlign = 'center';
@@ -294,19 +283,19 @@ export default function MapView() {
       hr.at = now;
     }
     ctx.save();
-    ctx.globalAlpha = 0.75;
+    ctx.globalAlpha = CONFIG.heatmapOpacity;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(hr.canvas, 0, 0, heat.cols * heat.cell, heat.rows * heat.cell);
     ctx.restore();
   }
 
+  // Pantry markers: a light disk when open, slate when closed, stock as a ring on the rim.
   function drawPantries(ctx, scale) {
-    const iconR = Math.max(10, 18 / Math.sqrt(scale));
+    const iconR = pantryRadius(scale);
     for (const p of state.pantries) {
       const x = p.lat, y = p.lng;
       const ratio = p.capacity > 0 ? Math.max(0, p.stock) / p.capacity : 0;
-      const color = p.closed ? '#64748b' : ratio > 0.5 ? '#22c55e' : ratio > 0.2 ? '#f59e0b' : '#ef4444';
 
       let shakeX = 0;
       if (p.shake > 0) {
@@ -316,92 +305,79 @@ export default function MapView() {
 
       const px = x + shakeX;
 
-      // Background circle
+      const open = !p.closed;
+      const empty = open && p.stock < 1;
+
+      // dark halo, then the disk: light when open, slate when closed
+      ctx.beginPath();
+      ctx.arc(px, y, iconR + 3 / scale, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(2,6,23,0.6)';
+      ctx.fill();
       ctx.beginPath();
       ctx.arc(px, y, iconR, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(15,23,42,0.92)';
+      ctx.fillStyle = open ? '#f8fafc' : '#334155';
       ctx.fill();
 
-      // Stock ring
+      // stock ring on the rim
+      const ringW = 3.5 / scale, ringR = iconR - ringW / 2 - 0.5 / scale;
+      ctx.lineWidth = ringW;
       ctx.beginPath();
-      ctx.arc(px, y, iconR - 2, -Math.PI / 2, -Math.PI / 2 + ratio * Math.PI * 2);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.5 / scale;
+      ctx.arc(px, y, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = !open ? 'rgba(148,163,184,0.35)' : empty ? 'rgba(220,38,38,0.4)' : 'rgba(15,23,42,0.14)';
       ctx.stroke();
-
-      // Track ring
-      ctx.beginPath();
-      ctx.arc(px, y, iconR - 2, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(100,116,139,0.3)';
-      ctx.lineWidth = 2.5 / scale;
-      ctx.stroke();
+      if (open && ratio > 0) {
+        ctx.beginPath();
+        ctx.arc(px, y, ringR, -Math.PI / 2, -Math.PI / 2 + ratio * Math.PI * 2);
+        ctx.strokeStyle = ratio > 0.5 ? '#16a34a' : ratio > 0.2 ? '#d97706' : '#dc2626';
+        ctx.stroke();
+      }
 
       if (p.closed && p.closedReason === 'hours') {
-        // Closed for the night: crescent moon
         drawMoon(ctx, px, y, iconR * 0.46);
       } else {
         const label = p.closed ? 'X' : Math.max(0, Math.floor(p.stock)).toString();
-        ctx.fillStyle = '#e2e8f0';
-        ctx.font = `bold ${Math.round(iconR * 0.75)}px sans-serif`;
+        ctx.fillStyle = p.closed ? '#e2e8f0' : empty ? '#dc2626' : '#0f172a';
+        ctx.font = `bold ${Math.round(iconR * 0.78)}px Inter, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(label, px, y + 0.5);
       }
 
-      // ID below
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = `${Math.round(iconR * 0.4)}px sans-serif`;
+      // ID below, with a dark edge so it reads over anything
+      ctx.font = `600 ${Math.round(iconR * 0.44)}px Inter, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`#${p.id}`, px, y + iconR + iconR * 0.35);
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(2,6,23,0.85)';
+      ctx.lineWidth = 3 / scale;
+      ctx.strokeText(`#${p.id}`, px, y + iconR + iconR * 0.5);
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillText(`#${p.id}`, px, y + iconR + iconR * 0.5);
 
-      // Highlight if inspected
       if (state.inspecting === p.id) {
         ctx.beginPath();
-        ctx.arc(px, y, iconR + 3, 0, Math.PI * 2);
+        ctx.arc(px, y, iconR + 5 / scale, 0, Math.PI * 2);
         ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 2 / scale;
+        ctx.lineWidth = 2.5 / scale;
         ctx.stroke();
       }
     }
   }
 
-  // Homes of households that went without food and are still waiting:
-  // amber for 1–2 days, red for 3 or more.
-  function drawWaiting(ctx, scale) {
-    const r = Math.max(1.4, 2 / scale);
-    const short = new Path2D(), long = new Path2D();
-    for (const h of state.households.list) {
-      if (!h.active || !h.inNeed || h.daysWaiting < 1) continue;
-      const path = h.daysWaiting >= 3 ? long : short;
-      path.moveTo(h.home[0] + r, h.home[1]);
-      path.arc(h.home[0], h.home[1], r, 0, Math.PI * 2);
-    }
-    ctx.fillStyle = 'rgba(245,158,11,0.42)';
-    ctx.fill(short);
-    ctx.fillStyle = 'rgba(239,68,68,0.6)';
-    ctx.fill(long);
-  }
-
+  // People: a colored center (wellbeing, blue to red) inside a white ring with a thin dark edge.
   function drawAgents(ctx, scale) {
     const r = Math.max(2, CONFIG.agentRadius / scale);
+    const ring = CONFIG.agentRingWidth / scale, edge = 1.3 / scale;
+    const iconR = pantryRadius(scale);
+    const outer = r + ring + edge;
     for (const a of state.agents) {
-      if (a.state === 'queued' && a.targetPantry) {
-        const p = a.targetPantry;
+      const p = a.targetPantry;
+      if (a.state === 'queued' && p) {
+        // spot 0 is the person at the counter; the line starts at spot 1
         const idx = p.queue.indexOf(a);
-        if (idx >= 0) {
-          let placed = 0, ring = 0;
-          while (placed + (6 + ring * 3) <= idx) {
-            placed += 6 + ring * 3;
-            ring++;
-          }
-          const cap = 6 + ring * 3;
-          const slot = idx - placed;
-          const offset = ring * 1.0;
-          const angle = (slot / cap) * Math.PI * 2 + offset;
-          const radius = 20 + ring * 8;
-          a.pos = [p.lat + Math.cos(angle) * radius, p.lng + Math.sin(angle) * radius];
-        }
+        if (idx >= 0) a.pos = queueSpot(p, idx + 1, iconR, outer);
+      } else if (a.state === 'served' && p) {
+        a.pos = queueSpot(p, 0, iconR, outer);
       }
 
       let [ax, ay] = a.pos;
@@ -410,7 +386,7 @@ export default function MapView() {
         ax = a.px + (ax - a.px) * state.stepAlpha;
         ay = a.py + (ay - a.py) * state.stepAlpha;
       }
-      let rr = r;
+      let size = 1;
       let opacity = CONFIG.agentOpacity;
       if (a.state === 'stranded') {
         // Too far from any pantry: waggle in place
@@ -420,7 +396,7 @@ export default function MapView() {
       } else if (a.state === 'timed_out') {
         const f = Math.max(0, a.lingerTimer / CONFIG.strandedFadeTime);
         opacity = Math.max(0.05, f * CONFIG.agentOpacity);
-        rr = r * (0.5 + 0.5 * f);
+        size = 0.5 + 0.5 * f;
       } else if (a.state === 'served' && a.lingerTimer < CONFIG.fadeTime) {
         opacity = Math.max(0.05, (a.lingerTimer / CONFIG.fadeTime) * CONFIG.agentOpacity);
       } else if (a.state === 'leaving') {
@@ -429,7 +405,15 @@ export default function MapView() {
 
       ctx.globalAlpha = opacity;
       ctx.beginPath();
-      ctx.arc(ax, ay, rr, 0, Math.PI * 2);
+      ctx.arc(ax, ay, outer * size, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(2,6,23,0.55)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ax, ay, (r + ring) * size, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ax, ay, r * size, 0, Math.PI * 2);
       ctx.fillStyle = agentColor(a);
       ctx.fill();
     }
@@ -548,26 +532,60 @@ function getRaster(city) {
   return out;
 }
 
-// Green where demand was met, red where it wasn't; more outcomes = more opaque.
+// Heatmap of unmet need: where the households that went without food live, counted
+// since the start of the run. Each cell's count is spread out (blurred) so areas merge,
+// then colored green → yellow → red. The scale is relative: red is the worst area in
+// this run, and areas with little unmet need are left clear.
+const HEAT_STOPS = [ // [share of the worst area, red, green, blue, opacity]
+  [0.00, 102, 255, 0, 0.0],
+  [0.16, 102, 255, 0, 0.0],
+  [0.34, 110, 255, 0, 0.5],
+  [0.55, 238, 255, 0, 0.7],
+  [0.78, 255, 160, 0, 0.82],
+  [1.00, 255, 20, 0, 0.9],
+];
+const HEAT_UP = 4; // drawn at this many pixels per heat cell, then scaled up smoothly
+
+function heatRamp(t, out, o) {
+  let k = 1;
+  while (k < HEAT_STOPS.length - 1 && t > HEAT_STOPS[k][0]) k++;
+  const a = HEAT_STOPS[k - 1], b = HEAT_STOPS[k];
+  const f = Math.max(0, Math.min(1, (t - a[0]) / (b[0] - a[0] || 1)));
+  out[o] = a[1] + (b[1] - a[1]) * f;
+  out[o + 1] = a[2] + (b[2] - a[2]) * f;
+  out[o + 2] = a[3] + (b[3] - a[3]) * f;
+  out[o + 3] = 255 * (a[4] + (b[4] - a[4]) * f);
+}
+
 function buildHeatCanvas(heat) {
+  const { cols, rows } = heat;
+  const W = cols * HEAT_UP, H = rows * HEAT_UP;
   const c = document.createElement('canvas');
-  c.width = heat.cols; c.height = heat.rows;
+  c.width = W; c.height = H;
   const cctx = c.getContext('2d');
-  const img = cctx.createImageData(heat.cols, heat.rows);
-  let maxT = 0;
-  for (let i = 0; i < heat.met.length; i++) maxT = Math.max(maxT, heat.met[i] + heat.unmet[i]);
-  if (maxT > 0) {
-    const lmax = Math.log1p(maxT);
-    for (let i = 0; i < heat.met.length; i++) {
-      const t = heat.met[i] + heat.unmet[i];
-      if (!t) continue;
-      const ratio = heat.met[i] / t;
-      const o = i * 4;
-      img.data[o] = Math.round(239 + (34 - 239) * ratio);
-      img.data[o + 1] = Math.round(68 + (197 - 68) * ratio);
-      img.data[o + 2] = Math.round(68 + (94 - 68) * ratio);
-      img.data[o + 3] = Math.round(255 * (0.3 + 0.7 * Math.log1p(t) / lmax));
-    }
+  const s = CONFIG.heatmapBlurCells * HEAT_UP, rad = Math.ceil(s * 3);
+  const kern = new Float32Array(rad * 2 + 1);
+  for (let i = -rad; i <= rad; i++) kern[i + rad] = Math.exp(-(i * i) / (2 * s * s));
+  const a = new Float32Array(W * H), b = new Float32Array(W * H);
+  const half = HEAT_UP >> 1;
+  for (let r = 0; r < rows; r++) for (let cc = 0; cc < cols; cc++) {
+    const v = heat.unmet[r * cols + cc];
+    if (v) a[(r * HEAT_UP + half) * W + cc * HEAT_UP + half] = v;
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const v = a[y * W + x]; if (!v) continue;
+    for (let i = -rad; i <= rad; i++) { const xx = x + i; if (xx >= 0 && xx < W) b[y * W + xx] += v * kern[i + rad]; }
+  }
+  a.fill(0);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const v = b[y * W + x]; if (!v) continue;
+    for (let i = -rad; i <= rad; i++) { const yy = y + i; if (yy >= 0 && yy < H) a[yy * W + x] += v * kern[i + rad]; }
+  }
+  let max = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] > max) max = a[i];
+  const img = cctx.createImageData(W, H);
+  if (max > 0) {
+    for (let i = 0; i < a.length; i++) heatRamp(a[i] / max, img.data, i * 4);
   }
   cctx.putImageData(img, 0, 0);
   return c;
@@ -602,6 +620,25 @@ function makeParticles(cond, w, h) {
     });
   }
   return out;
+}
+
+function pantryRadius(scale) {
+  return Math.max(10, 18 / Math.sqrt(scale));
+}
+
+// Spot n around a pantry marker: rings of people, the first ring just outside the marker.
+function queueSpot(p, n, iconR, outer) {
+  const step = outer * 1.5; // neighbors overlap a little, like a crowd
+  let R = iconR + outer * 0.9, ringIdx = 0;
+  let cap = Math.max(6, Math.floor((2 * Math.PI * R) / step));
+  while (n >= cap) {
+    n -= cap;
+    ringIdx++;
+    R += outer * 1.55;
+    cap = Math.floor((2 * Math.PI * R) / step);
+  }
+  const angle = (n / cap) * Math.PI * 2 + ringIdx * 0.5;
+  return [p.lat + Math.cos(angle) * R, p.lng + Math.sin(angle) * R];
 }
 
 function agentColor(a) {

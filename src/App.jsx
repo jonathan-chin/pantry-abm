@@ -3,8 +3,10 @@ import { useSimulation } from './hooks/useSimulation.js';
 import { state, initSim, initModifiers, notify, getEffectiveWeather, setLayer } from './simulation/engine.js';
 import { loadDefaultCity, loadCity, getCityIndex, getCity } from './data/cityStore.js';
 import { WEATHER_LABELS } from './data/weather.js';
+import { LAYERS } from './data/layers.js';
 import MapView from './components/MapView.jsx';
 import Panel from './components/Panel.jsx';
+import MetricsBar from './components/MetricsBar.jsx';
 import StackedChart from './components/StackedChart.jsx';
 import Sparklines from './components/Sparklines.jsx';
 import Summary from './components/Summary.jsx';
@@ -65,12 +67,15 @@ export default function App() {
     <div className="app-layout">
       <div className="small-screen-note">This tool is designed for desktop and laptop screens. Parts of it will overlap on a phone.</div>
       <div className="top-row">
-        <div className="chart-area" ref={chartContainerRef}>
-          <StackedChart width={chartSize.w} height={chartSize.h} />
+        <div className="top-charts">
+          <div className="chart-area" ref={chartContainerRef}>
+            <StackedChart width={chartSize.w} height={chartSize.h} />
+          </div>
+          <div className="spark-area" ref={sparkContainerRef}>
+            <Sparklines width={sparkSize.w} height={sparkSize.h} />
+          </div>
         </div>
-        <div className="spark-area" ref={sparkContainerRef}>
-          <Sparklines width={sparkSize.w} height={sparkSize.h} />
-        </div>
+        <MetricsBar />
       </div>
 
       <div className="bottom-row">
@@ -87,16 +92,10 @@ export default function App() {
           </div>
           <MapToolbar />
           {state.layers.heatmap && (
-            <div className="heat-legend">
-              <span>Demand</span>
+            <div className="heat-legend" title="Where households that went without food live, counted since the start of the run. Red is the worst area in this run.">
+              <span>Unmet need</span>
               <span className="heat-ramp" />
-              <span className="heat-labels"><span>unmet</span><span>met</span></span>
-            </div>
-          )}
-          {state.layers.waiting && (
-            <div className="wait-legend">
-              <span><i style={{ background: 'rgba(245,158,11,0.8)' }} />Waiting 1–2 days</span>
-              <span><i style={{ background: 'rgba(239,68,68,0.9)' }} />3+ days</span>
+              <span className="heat-labels"><span>less</span><span>more</span></span>
             </div>
           )}
           {city?.attribution && (
@@ -167,103 +166,103 @@ function ClockBadge() {
   );
 }
 
-const LAYER_GROUPS = [
-  { title: 'Base map', items: [['water', 'Water'], ['parks', 'Parks'], ['streets', 'Streets'], ['highways', 'Highways'], ['labels', 'Neighborhood names']] },
-  { title: 'Overlays', items: [['pantries', 'Pantries'], ['agents', 'People on the move'], ['waiting', 'Households waiting'], ['heatmap', 'Demand heatmap'], ['weather', 'Weather effects']] },
+const ICON = { viewBox: '0 0 20 20', width: 18, height: 18, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
+
+// Pantry tools: each one arms a kind of click on the map. With none armed, clicking a pantry inspects it.
+const PANTRY_TOOLS = [
+  {
+    flag: 'addingPantry', label: 'Add pantry', hint: 'then click a street corner',
+    icon: <svg {...ICON} strokeWidth="2.5"><line x1="10" y1="4" x2="10" y2="16" /><line x1="4" y1="10" x2="16" y2="10" /></svg>,
+  },
+  {
+    flag: 'removingPantry', label: 'Remove pantry', hint: 'then click a pantry',
+    icon: <svg {...ICON}><line x1="4" y1="6" x2="16" y2="6" /><path d="M8 6V4h4v2" /><path d="M6 6l0.8 11h6.4L14 6" /></svg>,
+  },
+  {
+    flag: 'closingPantry', label: 'Close or reopen pantry', hint: 'then click pantries',
+    icon: <svg {...ICON}><circle cx="10" cy="10" r="7" /><line x1="5.5" y1="5.5" x2="14.5" y2="14.5" /></svg>,
+  },
 ];
 
 function MapToolbar() {
-  const [layersOpen, setLayersOpen] = useState(false);
+  const [menu, setMenu] = useState(null); // 'tools' | 'layers' | null
+  const barRef = useRef(null);
+  const armed = PANTRY_TOOLS.find(t => state[t.flag]) || null;
 
-  function clearModes() {
-    state.addingPantry = false;
-    state.removingPantry = false;
-    state.closingPantry = false;
-  }
-  function toggle(mode) {
-    if (mode === 'inspect') {
-      clearModes();
-    } else if (mode === 'add') {
-      const was = state.addingPantry;
-      clearModes();
-      state.addingPantry = !was;
-    } else if (mode === 'remove') {
-      const was = state.removingPantry;
-      clearModes();
-      state.removingPantry = !was;
-    } else if (mode === 'close') {
-      const was = state.closingPantry;
-      clearModes();
-      state.closingPantry = !was;
-    }
+  function arm(tool) {
+    const was = !!(tool && state[tool.flag]);
+    for (const t of PANTRY_TOOLS) state[t.flag] = false;
+    if (tool && !was) state[tool.flag] = true;
     notify();
   }
 
-  const inspecting = !state.addingPantry && !state.removingPantry && !state.closingPantry;
+  // Escape puts the tools away; a click anywhere else closes an open menu
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key !== 'Escape') return;
+      setMenu(null);
+      if (PANTRY_TOOLS.some(t => state[t.flag])) arm(null);
+    }
+    function onDown(e) {
+      if (barRef.current && !barRef.current.contains(e.target)) setMenu(null);
+    }
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onDown);
+    };
+  }, []);
+
   return (
-    <div className="map-toolbar">
-      <button
-        className={'map-tool-btn' + (inspecting ? ' active' : '')}
-        onClick={() => toggle('inspect')}
-        title="Inspect pantry"
-      >
-        <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <circle cx="8.5" cy="8.5" r="5.5" /><line x1="12.5" y1="12.5" x2="17" y2="17" />
-        </svg>
-      </button>
-      <button
-        className={'map-tool-btn' + (state.addingPantry ? ' active' : '')}
-        onClick={() => toggle('add')}
-        title="Add pantry"
-      >
-        <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="10" y1="4" x2="10" y2="16" /><line x1="4" y1="10" x2="16" y2="10" />
-        </svg>
-      </button>
-      <button
-        className={'map-tool-btn' + (state.removingPantry ? ' active' : '')}
-        onClick={() => toggle('remove')}
-        title="Remove pantry"
-      >
-        <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <polyline points="5,4 10,9 15,4" /><rect x="5" y="8" width="10" height="8" rx="1" /><line x1="8" y1="11" x2="8" y2="14" /><line x1="12" y1="11" x2="12" y2="14" />
-        </svg>
-      </button>
-      <button
-        className={'map-tool-btn' + (state.closingPantry ? ' active' : '')}
-        onClick={() => toggle('close')}
-        title="Close/reopen pantry"
-      >
-        <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <circle cx="10" cy="10" r="7" /><line x1="6" y1="6" x2="14" y2="14" />
-        </svg>
-      </button>
-      <div className="toolbar-sep" />
-      <button
-        className={'map-tool-btn' + (layersOpen ? ' active' : '')}
-        onClick={() => setLayersOpen(o => !o)}
-        title="Map layers"
-        aria-expanded={layersOpen}
-      >
-        <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-          <polygon points="10,3 18,7 10,11 2,7" /><polyline points="2,10.5 10,14.5 18,10.5" /><polyline points="2,14 10,18 18,14" />
-        </svg>
-      </button>
-      {layersOpen && (
-        <div className="layers-popover">
-          {LAYER_GROUPS.map(g => (
-            <div key={g.title} className="layers-group">
-              <div className="layers-title">{g.title}</div>
-              {g.items.map(([id, label]) => (
-                <label key={id} className="layer-item">
-                  <input type="checkbox" checked={!!state.layers[id]} onChange={e => setLayer(id, e.target.checked)} />
-                  {label}
-                </label>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="map-toolbar" ref={barRef}>
+      <div className="map-tool">
+        <button
+          className={'map-tool-btn' + (armed ? ' active' : '')}
+          onClick={() => setMenu(m => (m === 'tools' ? null : 'tools'))}
+          title={armed ? `${armed.label} is on` : 'Pantry tools'}
+          aria-haspopup="menu" aria-expanded={menu === 'tools'}
+        >
+          {armed ? armed.icon : (
+            <svg {...ICON}><path d="M3.5 16.5l1-4L13.5 3.5l3 3L7.5 15.5z" /><line x1="11.5" y1="5.5" x2="14.5" y2="8.5" /></svg>
+          )}
+        </button>
+        {menu === 'tools' && (
+          <div className="map-menu" role="menu">
+            <div className="map-menu-title">Pantry tools</div>
+            {PANTRY_TOOLS.map(t => (
+              <button key={t.flag} role="menuitemcheckbox" aria-checked={!!state[t.flag]}
+                className={'map-menu-item' + (state[t.flag] ? ' on' : '')}
+                onClick={() => { arm(t); setMenu(null); }}>
+                <span className="map-menu-icon">{t.icon}</span>
+                <span className="map-menu-text">{t.label}<small>{state[t.flag] ? 'on · choose again to turn off' : t.hint}</small></span>
+              </button>
+            ))}
+            <div className="map-menu-note">With no tool on, click a pantry to inspect it.</div>
+          </div>
+        )}
+      </div>
+      <div className="map-tool">
+        <button
+          className={'map-tool-btn' + (menu === 'layers' ? ' open' : '')}
+          onClick={() => setMenu(m => (m === 'layers' ? null : 'layers'))}
+          title="Map layers"
+          aria-haspopup="menu" aria-expanded={menu === 'layers'}
+        >
+          <svg {...ICON} strokeWidth="1.8"><polygon points="10,3 18,7 10,11 2,7" /><polyline points="2,10.5 10,14.5 18,10.5" /><polyline points="2,14 10,18 18,14" /></svg>
+        </button>
+        {menu === 'layers' && (
+          <div className="map-menu" role="menu">
+            <div className="map-menu-title">Layers</div>
+            {LAYERS.map(l => (
+              <label key={l.id} className="layer-item">
+                <input type="checkbox" checked={!!state.layers[l.id]} onChange={e => setLayer(l.id, e.target.checked)} />
+                {l.label}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

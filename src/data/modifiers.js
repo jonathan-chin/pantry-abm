@@ -7,6 +7,9 @@ import { WEATHER_EFFECTS } from './weather.js';
 
 const TYPES = ['replacement', 'additive', 'weather'];
 
+// Background patterns for the timeline; drawn in src/utils/chartDraw.js.
+export const MODIFIER_PATTERNS = ['diagonal_up', 'diagonal_down', 'horizontal', 'dots', 'crosses', 'dashes'];
+
 function readModifier(m, i) {
   const where = `config/modifiers.yaml: modifiers[${i}]`;
   for (const key of ['id', 'label', 'type', 'color']) {
@@ -19,8 +22,12 @@ function readModifier(m, i) {
   if (m.need_multiplier !== undefined && typeof m.need_multiplier !== 'number') {
     throw new Error(`${where}: "need_multiplier" must be a number`);
   }
+  if (m.pattern !== undefined && !MODIFIER_PATTERNS.includes(m.pattern)) {
+    throw new Error(`${where}: "pattern" must be one of ${MODIFIER_PATTERNS.join(', ')}`);
+  }
   return {
     id: m.id, label: m.label, type: m.type, color: m.color,
+    pattern: m.pattern ?? MODIFIER_PATTERNS[i % MODIFIER_PATTERNS.length],
     description: m.description || '',
     weather: m.weather,
     needMultiplier: m.need_multiplier ?? 1,
@@ -41,3 +48,4 @@ export const MODIFIER_GROUPS = [
 const BY_ID = Object.fromEntries(MODIFIERS.map(m => [m.id, m]));
 export function modifierColor(id) { return BY_ID[id]?.color || '#94a3b8'; }
 export function modifierLabel(id) { return BY_ID[id]?.label || id; }
+export function modifierPattern(id) { return BY_ID[id]?.pattern || MODIFIER_PATTERNS[0]; }
