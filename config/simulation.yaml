@@ -21,7 +21,8 @@ stepping:
   max_steps_per_frame: 40                # if the browser falls behind, it drops time instead of freezing
 
 randomness:
-  initial_seed: 1                        # same seed and same settings give the same run
+  initial_seed: random                   # random = a new seed each time the tool loads; or a whole number to always start from that seed
+                                         # (the seed in use is shown in the Simulation section; same seed and same settings give the same run)
 
 charts:
   sample_interval_minutes: 4             # one chart sample per interval

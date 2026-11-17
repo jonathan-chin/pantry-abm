@@ -4,14 +4,15 @@
 # Every name ends with its unit.
 #   seconds_at_1x   real seconds on screen at 1x speed (shorter at higher speeds)
 #   map_units       one map unit is 5 meters
+#   minutes         simulated minutes
 
 agents:
-  radius_px: 5
+  radius_px: 7                           # the colored center of each person
+  ring_width_px: 2                       # the white ring around it
   opacity_0_to_1: 0.9
   served_linger_seconds_at_1x: 1.0       # a served person stays visible this long...
   served_fade_seconds_at_1x: 0.5         # ...then fades over this long
-  walk_away_seconds_at_1x: 3.0           # someone leaving without food walks off for this long
-  walk_away_speed_map_units_per_second_at_1x: 80
+  walk_away_seconds_at_1x: 3.0           # someone turned away walks back along their streets for this long, fading
   stay_home_fade_seconds_at_1x: 1.2      # someone who never set out fades at home
   waggle_amplitude_map_units: 2.5        # the "too far" waggle
   waggle_speed_radians_per_second_at_1x: 16
@@ -21,7 +22,10 @@ pantries:
   shake_cycles_per_second_at_1x: 3
 
 charts:
-  event_marker_width_px: 2
+  event_marker_width_px: 3               # the divider drawn for a shock or a pantry change
+  routine_event_group_gap_minutes: 180   # nightly openings (or closings) closer together than this share one marker
 
 heatmap:
   cell_meters: 125
+  blur_meters: 125                       # how far each cell's count spreads; larger is smoother
+  opacity_0_to_1: 0.85

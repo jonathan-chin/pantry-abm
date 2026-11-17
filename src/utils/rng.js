@@ -45,7 +45,8 @@ export function streamSeed(seed, salt) {
   return mix(normalizeSeed(seed), salt) | 0;
 }
 
-// A fresh seed for the "New" button (not part of any run, so plain Math.random is fine).
+// A fresh seed, for the "New" button and for each load of the tool (not part of any run,
+// so plain Math.random is fine).
 export function randomSeed() {
   return 1 + Math.floor(Math.random() * 999999);
 }

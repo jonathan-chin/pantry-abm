@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { state } from '../simulation/engine.js';
 import { binSamples, windowSpan, WINDOW_OPTIONS } from '../utils/window.js';
-import { EVENT_ICONS } from '../utils/chartDraw.js';
+import { eventMarkers, drawEventMarkers } from '../utils/chartDraw.js';
 import { simSecondsToMinutes } from '../config.js';
 
 export default function Sparklines({ width, height }) {
@@ -87,24 +87,7 @@ function drawSparkline(ctx, points, xOf, span, now, x, y, w, h, color, label, un
   }
 
   // Event markers, placed on the same time axis as the line so they scroll with it
-  for (const evt of state.events) {
-    if (evt.time < now - span || evt.time > now) continue;
-    const icon = EVENT_ICONS[evt.type];
-    if (!icon) continue;
-    const ex = x + xOf(evt.time);
-    ctx.strokeStyle = icon.color;
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(ex, plotY);
-    ctx.lineTo(ex, plotY + plotH);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = icon.color;
-    ctx.font = 'bold 10px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(icon.symbol, ex, plotY - 2);
-  }
+  drawEventMarkers(ctx, eventMarkers(state.events), xOf, now - span, now, plotY, plotY + plotH, { offsetX: x, large: false });
 }
 
 function toPoints(bins, sumKey, nKey) {
