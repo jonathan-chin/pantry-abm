@@ -1,0 +1,28 @@
+# pantries.yaml
+# Pantry stock, hours, service and restocking.
+#
+# Every name ends with its unit. One package feeds one person.
+# Minutes and hours are simulated time.
+
+count: 12                                # how many sites are used; applied on Reset
+capacity_packages: 20                    # shelf space per pantry; applied on Reset
+capacity_variance_percent: 30            # each pantry's capacity differs by up to this much; applied on Reset
+min_capacity_packages: 3
+service_rate_people_per_hour: 60         # how fast each open pantry works through its line
+
+hours:
+  open_hour_24h: 8
+  close_hour_24h: 17
+  jitter_hours: 1                        # each pantry shifts both by -1, 0 or +1 times this
+
+restock:
+  starts_full_each_day: true             # shelves are full when a pantry opens for the day
+  interval_minutes: [40, 80]             # time between deliveries while open
+  amount_packages: [2, 8]                # size of each delivery
+  first_delivery_head_start_minutes: [0, 60]
+
+shock:                                   # the "SNAP shock" button
+  duration_days: 5
+  need_multiplier_at_start: 2.5          # need comes due this much faster; fades back to 1 over the duration
+  variance_percent: 0                    # wobble in the multiplier
+  new_households_at_start_count: 500     # households that join at once, needing food right away

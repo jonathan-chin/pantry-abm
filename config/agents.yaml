@@ -1,0 +1,99 @@
+# agents.yaml
+# Households: who needs food and how often, how they move, how long they wait,
+# and how they pick a pantry.
+#
+# Every name ends with its unit. Minutes and hours are simulated time.
+
+households:
+  count: 5000                              # households in the pool at the start; applied on Reset
+  need_interval_days: { mean: 7, sd: 2 }   # how often a household needs food; drawn once per household
+  min_need_interval_days: 1
+  need_interval_variation_share: 0.2       # each cycle runs this much shorter or longer, at random
+  usual_time_jitter_minutes: 45            # a household sets out around the same time of day, give or take this
+  flexible_schedule_share: 0.7             # share who pick a new time of day after finding pantries closed
+  avoid_after_failure_days: 7              # how long a household avoids a pantry that failed it
+  gives_up_after_days_waiting: 10          # days in a row without food before a household leaves the system
+  retire_probability_per_day: 0.01         # chance per day that a household stops needing pantry food
+  new_households_per_day: 50               # 50 a day keeps a pool of 5,000 steady when 1% retire each day
+  lives_outside_demand_zones_share: 0.3    # share whose home is anywhere on the map, not in a demand zone
+
+need:                                      # when, and how fast, need comes due
+  start_hour_24h: 7                        # households set out between these hours
+  end_hour_24h: 19
+  weekday_multiplier: 1.0                  # need comes due this much faster (above 1) or slower (below 1)
+  weekend_multiplier: 0.4
+
+movement:
+  walking_speed_km_per_hour: 4.8
+  max_walk_km: 4                         # for profiles with no limit of their own; weather shrinks it
+  min_trip_minutes: 0.4                  # even a next-door trip takes this long
+
+patience:
+  max_wait_in_line_minutes: 30           # after this, people start giving up (times their own patience)
+  give_up_probability_per_minute: 0.01   # chance per minute of leaving, once past the limit
+  stranded_wait_minutes: [8, 16]         # too far from every pantry: waits this long, then goes without
+
+wellbeing:                               # only drives the color of each dot
+  loss_per_minute_walking: 0.02
+  loss_per_minute_in_line: 0.03
+  stranded_loss_multiplier: 2
+
+# Behavior profiles. share_weight is relative: 35 of 100 people are seekers.
+#   max_trip_km: null means no limit of their own (movement.max_walk_km applies)
+profiles:
+  - id: seeker
+    share_weight: 35
+    knows_opening_hours: true
+    max_trip_km: null
+    weighs_lines: false
+    picks_from_habit: false
+    follows_redirection_probability: 0.8
+  - id: distant
+    share_weight: 20
+    knows_opening_hours: true
+    max_trip_km: 1.5
+    weighs_lines: false
+    picks_from_habit: false
+    follows_redirection_probability: 0.9
+  - id: habit
+    share_weight: 15
+    knows_opening_hours: false
+    max_trip_km: null
+    weighs_lines: false
+    picks_from_habit: true
+    follows_redirection_probability: 0.3
+  - id: avoider
+    share_weight: 15
+    knows_opening_hours: true
+    max_trip_km: 3
+    weighs_lines: true
+    picks_from_habit: false
+    follows_redirection_probability: 0.95
+  - id: unaware
+    share_weight: 15
+    knows_opening_hours: false
+    max_trip_km: null
+    weighs_lines: false
+    picks_from_habit: false
+    follows_redirection_probability: 0.1
+
+# How a pantry is chosen.
+#   People who know opening hours only consider open pantries, and stay home if
+#   nothing is open. The others consider every pantry and may walk to a closed one.
+#   Everyone skips a pantry that failed them recently when there is another choice
+#   (households.avoid_after_failure_days).
+choice:
+  habit:
+    picks_among_nearest_count: 5         # picks_from_habit: back to where they last got food; otherwise a
+                                         #   random one of the nearest few
+
+  line_weigher:                          # weighs_lines: best score among the nearest few
+    considers_nearest_count: 8           # score = stock share / (1 + km * distance) / (1 + people * line)
+    distance_penalty_per_km: 0.3
+    line_penalty_per_person: 0.5
+
+  load_balancing:                        # only when the Load Balancing modifier is on and the person complies
+    redirect_when_stock_share_below: 0.4 # stays at the nearest open pantry unless it is this low
+    distance_penalty_per_km: 0.4         # score = stock share^2 / (1 + km * distance) / (1 + people * line) * noise
+    line_penalty_per_person: 0.2
+    noise_multiplier_range: [0.5, 1.5]

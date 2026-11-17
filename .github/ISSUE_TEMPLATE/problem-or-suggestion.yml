@@ -1,0 +1,23 @@
+name: Report a problem or suggest a change
+description: Something looks wrong in the tool, or you have an idea for it.
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, or what would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to see it
+      description: The map, the modifiers that were on, the seed, and roughly what you did. A screenshot helps.
+    validations:
+      required: false
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: "For example: Chrome on a Mac."
+    validations:
+      required: false

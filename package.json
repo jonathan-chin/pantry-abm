@@ -1,0 +1,37 @@
+{
+  "name": "nyc-pantry-abm",
+  "version": "0.1.0",
+  "description": "An agent-based model of food pantry access in New York City.",
+  "author": "Jonathan Chin",
+  "license": "UNLICENSED",
+  "homepage": "https://jonathan-chin.github.io/pantry-abm/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonathan-chin/pantry-abm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jonathan-chin/pantry-abm/issues"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "batch": "node scripts/runBatch.mjs"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "vite": "^8.3.8"
+  }
+}

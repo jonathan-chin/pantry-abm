@@ -1,0 +1,59 @@
+# weather.yaml
+# The daily weather roll, and what each condition does to people.
+#
+# Every name ends with its unit. A multiplier of 1 means no change.
+
+daily_probability:                       # chance of each condition when a new day starts; must add up to 1
+  clear: 0.35
+  partly_cloudy: 0.25
+  cloudy: 0.20
+  rain: 0.15
+  snow: 0.05
+
+winter:
+  starts_day_of_year: 300                # in winter, rain may fall as snow;
+  ends_day_of_year: 60                   #   outside winter, snow falls as rain
+  rain_becomes_snow_probability: 0.5
+
+per_person_multiplier_limits: [0.15, 1.25]   # each person's drawn multiplier is kept inside this range
+
+# goes_out_probability       share of people in need who still set out; the rest stay home, unmet
+# travel_range_multiplier    how far each person is willing to go, drawn per person
+# patience_multiplier        how long each person will wait in line, drawn per person
+# walking_speed_multiplier   applies to everyone
+effects:
+  clear:
+    goes_out_probability: 1.0
+    travel_range_multiplier: { mean: 1.0, sd: 0 }
+    patience_multiplier: { mean: 1.0, sd: 0 }
+    walking_speed_multiplier: 1.0
+  partly_cloudy:
+    goes_out_probability: 1.0
+    travel_range_multiplier: { mean: 1.0, sd: 0.05 }
+    patience_multiplier: { mean: 1.0, sd: 0.05 }
+    walking_speed_multiplier: 1.0
+  cloudy:
+    goes_out_probability: 0.95
+    travel_range_multiplier: { mean: 0.95, sd: 0.05 }
+    patience_multiplier: { mean: 0.95, sd: 0.05 }
+    walking_speed_multiplier: 1.0
+  rain:
+    goes_out_probability: 0.85
+    travel_range_multiplier: { mean: 0.7, sd: 0.15 }
+    patience_multiplier: { mean: 0.7, sd: 0.15 }
+    walking_speed_multiplier: 0.85
+  snow:
+    goes_out_probability: 0.7
+    travel_range_multiplier: { mean: 0.5, sd: 0.2 }
+    patience_multiplier: { mean: 0.55, sd: 0.2 }
+    walking_speed_multiplier: 0.6
+  heat:
+    goes_out_probability: 0.9
+    travel_range_multiplier: { mean: 0.75, sd: 0.15 }
+    patience_multiplier: { mean: 0.6, sd: 0.15 }
+    walking_speed_multiplier: 0.8
+  wind:
+    goes_out_probability: 0.95
+    travel_range_multiplier: { mean: 0.85, sd: 0.1 }
+    patience_multiplier: { mean: 0.85, sd: 0.1 }
+    walking_speed_multiplier: 0.9

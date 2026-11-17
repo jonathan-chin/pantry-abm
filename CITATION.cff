@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this tool or results from it, please cite it as below."
+title: "NYC Pantry ABM"
+abstract: "An agent-based model of food pantry access in New York City."
+type: software
+authors:
+  - family-names: Chin
+    given-names: Jonathan
+version: 0.1.0
+date-released: 2026-11-17
+repository-code: "https://github.com/jonathan-chin/pantry-abm"
+url: "https://jonathan-chin.github.io/pantry-abm/"

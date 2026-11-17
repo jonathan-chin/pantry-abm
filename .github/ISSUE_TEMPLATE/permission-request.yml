@@ -1,0 +1,42 @@
+name: Request permission to use the code
+description: Ask to copy, modify, host or build on this project.
+title: "Permission request: "
+labels: ["permission request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project is all rights reserved for now. Using the hosted tool and the results you produce with it needs no permission; please credit the author.
+
+        Use this form for anything else. Issues are public, so don't include anything confidential.
+  - type: input
+    id: who
+    attributes:
+      label: Who is asking?
+      description: Your name, and your organization if you're asking on its behalf.
+    validations:
+      required: true
+  - type: textarea
+    id: use
+    attributes:
+      label: What would you like to do with the code?
+      description: "For example: run your own copy for a class, adapt it to another city, or build on it in a study."
+    validations:
+      required: true
+  - type: dropdown
+    id: commercial
+    attributes:
+      label: Is the use commercial?
+      options:
+        - "No"
+        - "Yes"
+        - "Not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else?
+      description: Timing, which parts you need, or how you'd credit the work.
+    validations:
+      required: false

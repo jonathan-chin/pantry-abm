@@ -1,0 +1,29 @@
+# simulation.yaml
+# Clock, speed, stepping, randomness and chart sampling.
+#
+# Every name ends with its unit. Minutes, hours and days are simulated time
+# unless the name says "real".
+
+clock:
+  sim_minutes_per_real_second_at_1x: 2   # how fast the clock runs at 1x speed
+  start_hour_24h: 8                      # a run starts at this time of day...
+  start_weekday_1_to_7: 1                # ...on this weekday (1 = Monday)
+  day_starts_hour_24h: 6                 # nights are skipped: at day_ends the clock
+  day_ends_hour_24h: 20                  #   jumps to day_starts the next morning
+
+speed:
+  initial_multiplier: 1
+  min_multiplier: 0.2
+  max_multiplier: 20
+
+stepping:
+  step_minutes: 0.1                      # one fixed simulation step
+  max_steps_per_frame: 40                # if the browser falls behind, it drops time instead of freezing
+
+randomness:
+  initial_seed: 1                        # same seed and same settings give the same run
+
+charts:
+  sample_interval_minutes: 4             # one chart sample per interval
+  max_samples: 4000                      # about 19 days at 14 active hours a day
+  default_window_hours: 4                # 1, 2, 4, 8, 14 (1 day), 42 (3 days), 98 (1 week) or all

@@ -1,0 +1,52 @@
+# modifiers.yaml
+# The toggles in the Modifiers panel.
+#
+# type
+#   replacement  swaps the routing rule (one at a time)
+#   additive     stacks with anything; set need_multiplier to change how many people need food
+#   weather      forces the day's weather to the named condition in weather.yaml (one at a time)
+#
+# A new additive entry with a need_multiplier works without any code change.
+# color is the stripe drawn behind the timeline while the modifier is on.
+
+modifiers:
+  - id: load_balancing
+    label: Load Balancing
+    type: replacement
+    color: "#facc15"
+    description: Redirect people to pantries with more stock
+
+  - id: holiday_surge
+    label: Holiday Surge
+    type: additive
+    need_multiplier: 1.6
+    color: "#f472b6"
+    description: Seasonal rise in need
+
+  - id: weather_rain
+    label: Rain
+    type: weather
+    weather: rain
+    color: "#38bdf8"
+    description: Less willing to travel or wait, slower walking
+
+  - id: weather_snow
+    label: Snow
+    type: weather
+    weather: snow
+    color: "#f8fafc"
+    description: Much less willing to travel or wait, much slower walking
+
+  - id: weather_heat
+    label: Heat Wave
+    type: weather
+    weather: heat
+    color: "#fb923c"
+    description: Short patience in line, somewhat less travel
+
+  - id: weather_wind
+    label: High Wind
+    type: weather
+    weather: wind
+    color: "#2dd4bf"
+    description: Slightly less willing to travel or wait

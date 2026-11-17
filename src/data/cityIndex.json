@@ -1,0 +1,37 @@
+[
+  {
+    "slug": "manhattan",
+    "name": "Manhattan · Harlem",
+    "borough": "Manhattan",
+    "file": "manhattan.json",
+    "osmSnapshot": "2026-11-17T04:58:50Z"
+  },
+  {
+    "slug": "brooklyn",
+    "name": "Brooklyn · Sunset Park & Park Slope",
+    "borough": "Brooklyn",
+    "file": "brooklyn.json",
+    "osmSnapshot": "2026-11-17T05:00:51Z"
+  },
+  {
+    "slug": "bronx",
+    "name": "Bronx · South Bronx",
+    "borough": "Bronx",
+    "file": "bronx.json",
+    "osmSnapshot": "2026-11-17T05:02:47Z"
+  },
+  {
+    "slug": "queens",
+    "name": "Queens · Jackson Heights & Corona",
+    "borough": "Queens",
+    "file": "queens.json",
+    "osmSnapshot": "2026-11-17T05:03:49Z"
+  },
+  {
+    "slug": "staten-island",
+    "name": "Staten Island · North Shore",
+    "borough": "Staten Island",
+    "file": "staten-island.json",
+    "osmSnapshot": "2026-11-17T05:04:51Z"
+  }
+]
