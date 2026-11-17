@@ -8,7 +8,7 @@ The maps are real segments of the five boroughs, built from OpenStreetMap.
 
 **Status: proof of concept.** Apart from the street maps, nothing in it is real data yet. Pantries, households and their behavior are made up, and results are illustrative.
 
-![The tool on day 3 of a run on the Manhattan map: timeline and sparklines across the top, the map with pantries, people walking and households still waiting, and the panel with need met, reasons for unmet need, and the household pool](docs/screenshots/overview.webp)
+![The tool on day 3 of a run on the Manhattan map: timeline, sparklines and headline numbers across the top, the map with pantries and people walking, and the panel with the reasons for unmet need and the household pool](docs/screenshots/overview.webp)
 
 ## Why this exists
 
@@ -38,16 +38,18 @@ npm run build      # static site in dist/ (relative paths, so it works from any 
 
 The tool is designed for desktop and laptop screens, not phones.
 
-- **Timeline (top left).** Stacked bars of people served, redirected, waiting in line, leaving without food, and staying home, per time slice. Stripes behind the bars show which modifiers were on. The thin strip along the bottom shows the time of day: morning, afternoon or evening. Click a legend item to hide that band.
-- **Sparklines (top right).** Average wait and average travel time. Event markers (shocks, pantries added, removed, closed or reopened) line up with the timeline.
-- **Map.** Pantries show their remaining stock as a ring. A moon means the pantry is closed for the night; an X means you closed it by hand. Dots on the move are people on a trip; their color shows how they're doing, and it starts redder the longer their household has gone without. Small amber and red dots mark the homes of households still waiting for food (amber for 1–2 days, red for 3 or more). People too far from any pantry waggle in place and then time out.
-- **Panel (right).** Every section collapses. The **Window** slider at the top sets the time span for every chart and for the metrics, from 1 hour to the whole run.
+- **Timeline (top left).** Stacked bars of people served, redirected, waiting in line, leaving without food, and staying home, per time slice. A faint pattern behind the bars shows which modifiers were on; each modifier has its own pattern and color. The thin strip along the bottom shows the time of day: morning, afternoon or evening. Click a legend item to hide that band.
+- **Event markers.** A heavy line with a badge marks a shock, or a pantry you added, removed, closed or reopened. Quieter dashed lines mark the daily rhythm: a check where pantries start opening in the morning, a cross where they start closing in the evening.
+- **Sparklines (top middle).** Average wait and average travel time, with the same event markers.
+- **Numbers (top right).** The **Window** slider sets the time span for every chart and for these numbers, from 1 hour to the whole run. Below it are the share of need met and the counts for that window.
+- **Map.** Pantries are the large white disks. The number is the food left, and the ring around it shows how full the shelves are; an empty pantry shows a red 0. A dark disk with a moon is closed for the night, and a dark disk with an X is one you closed by hand. The smaller dots with white rings are people on a trip. The color inside shows how they're doing, and it starts redder the longer their household has gone without. People in line gather around the pantry. Someone who is turned away walks a short way back along their street and fades. People too far from any pantry waggle in place and then time out.
+- **Panel (right).** Controls and detail. Every section collapses.
 
 ### More screenshots
 
-Load balancing on, with the demand heatmap: green where people got food, red where they didn't. The stripes behind the timeline show when the modifier was on.
+Load balancing on, with the unmet need heatmap: the areas where the most households went without food, from green to red. The pattern behind the timeline shows when the modifier was on.
 
-![Load balancing with the demand heatmap on the Manhattan map](docs/screenshots/load-balancing-heatmap.webp)
+![Load balancing with the unmet need heatmap on the Manhattan map](docs/screenshots/load-balancing-heatmap.webp)
 
 A snow day on Staten Island's North Shore. Most unmet need comes from people kept home by the weather.
 
@@ -71,12 +73,13 @@ The **Households** section shows the pool: how many are in need, how many have w
 
 ### Map tools
 
-The toolbar on the right edge of the map lets you inspect, add, remove, and close or reopen pantries. The layers button turns these on and off:
+Two buttons sit on the right edge of the map.
 
-- Base map: water, parks, streets, highways, neighborhood names
-- Overlays: pantries, people on the move, households waiting, demand heatmap, weather effects
+**Pantry tools** opens a menu to add a pantry, remove one, or close and reopen one. Choose a tool, then click the map. The button turns green while a tool is on, and Escape puts it away. With no tool on, clicking a pantry inspects it.
 
-The **demand heatmap** colors each part of the map by where people started: green where they got food, red where they didn't. Stronger color means more people.
+**Layers** switches optional layers on and off. For now there is one, the unmet need heatmap. The base map, pantries, people and weather effects are always drawn.
+
+The **unmet need heatmap** shows where the households that went without food live, counted since the start of the run. Nearby areas merge into smooth patches that run from green through yellow to red. The scale is relative to the run: red is the worst area in this run, and areas with little unmet need are left clear. It shows where the gaps are, not how large they are compared with another run.
 
 ### Controls
 
@@ -89,7 +92,7 @@ The **demand heatmap** colors each part of the map by where people started: gree
 | Agents | Number of households, and how much capacity varies between pantries (both applied on Reset) |
 | Data | Summary of saved runs and CSV export |
 
-**Seed.** The seed fixes every random choice in a run: which pantry sites are used, the weather, who appears where, and what they decide. The same seed with the same settings replays the same run, on any machine. Type a seed or press New, then Reset. Two scenarios run on the same seed get the same pantries, weather and arrivals, so differences between them come from the scenario and not from luck.
+**Seed.** The seed fixes every random choice in a run: which pantry sites are used, the weather, who appears where, and what they decide. The same seed with the same settings replays the same run, on any machine. The tool picks a new random seed each time it loads and shows it in the Seed box, so note it down if you want to replay a run. Type a seed or press New, then Reset. To always start from the same seed, set `initial_seed` in `config/simulation.yaml` to a number. Two scenarios run on the same seed get the same pantries, weather and arrivals, so differences between them come from the scenario and not from luck.
 
 ### Settings
 
@@ -101,7 +104,7 @@ Every setting lives in a YAML file in `config/`, and every name ends with its un
 | `agents.yaml` | Households (pool size, how often they need food, memory, giving up, turnover), walking, patience, profiles, how a pantry is chosen |
 | `pantries.yaml` | Count, capacity, service rate, hours, restocking, the shock |
 | `weather.yaml` | Daily weather odds and what each condition does to people |
-| `modifiers.yaml` | The modifier toggles. A new `additive` entry with a `need_multiplier` works without code |
+| `modifiers.yaml` | The modifier toggles, with the color and pattern each one draws behind the timeline. A new `additive` entry with a `need_multiplier` works without code |
 | `display.yaml` | How things are drawn. Nothing here changes results |
 
 The files are the starting values. Edit one and the app reloads; a bad value stops the app with a message naming the file and the setting. Sliders change the live run, not the files. Sections with a `yaml` button show the file they belong to.
@@ -197,7 +200,7 @@ src/
   simulation/households.js  the household pool
   hooks/useSimulation.js    connects the engine to React
   components/               map, charts, panel, summary, config viewer
-  data/                     maps, and readers for profiles, modifiers and weather
+  data/                     maps, the list of map layers, and readers for profiles, modifiers and weather
   utils/                    pathfinding, random numbers, chart windowing, colors, CSV
   config.js                 loads config/*.yaml and converts units
 scripts/buildNycMaps.mjs    map builder
